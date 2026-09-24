@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SwimPace - app</title>
+<style>
+  :root { --bg:#0c1416; --card:#132024; --card2:#0f1a1d; --line:#1e3237; --ink:#e8f4f2; --dim:#8fb3ad; --teal:#5eead4; --amber:#fbbf24; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width:760px; margin:0 auto; padding:28px 20px 64px; }
+  header { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:22px; }
+  header h1 { font-size:26px; margin:0; }
+  header h1 span { color:var(--teal); }
+  header a { color:var(--dim); text-decoration:none; font-size:14px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:20px; margin:0 0 18px; }
+  .card h2 { margin:0 0 14px; font-size:18px; }
+  label { display:block; font-size:12px; letter-spacing:1px; text-transform:uppercase; color:var(--dim); margin:0 0 6px; }
+  input, select { width:100%; background:var(--card2); border:1px solid var(--line); color:var(--ink); border-radius:10px; padding:10px 12px; font-size:16px; }
+  .row3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; align-items:end; margin-bottom:14px; }
+  button { background:var(--teal); color:#06231e; border:0; font-weight:700; border-radius:10px; padding:11px 22px; font-size:16px; cursor:pointer; }
+  .hint { color:var(--dim); font-size:14px; margin-top:10px; }
+  .cssline { background:var(--card2); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:14px; color:var(--teal); font-weight:700; font-size:18px; }
+  .zrow { display:flex; justify-content:space-between; padding:10px 4px; border-top:1px solid var(--line); font-size:15px; }
+  .zrow .p { color:var(--teal); font-variant-numeric:tabular-nums; }
+  .part { padding:12px 4px; border-top:1px solid var(--line); }
+  .part b { font-size:15px; }
+  .part .detail { color:var(--dim); font-size:14px; margin-top:4px; }
+  .part .detail span { color:var(--teal); font-variant-numeric:tabular-nums; }
+  .total { color:var(--amber); font-size:14px; margin-top:12px; font-weight:600; }
+  .hidden { display:none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Swim<span>Pace</span></h1>
+    <a href="index.html">&larr; Home</a>
+  </header>
+
+  <div class="card">
+    <h2>Your time trial</h2>
+    <div class="row3">
+      <div><label for="f-400">400m time (m:ss)</label><input id="f-400" type="text" placeholder="6:00"></div>
+      <div><label for="f-200">200m time (m:ss)</label><input id="f-200" type="text" placeholder="2:50"></div>
+      <button id="f-calc">Get my CSS</button>
+    </div>
+    <p class="hint">All-out 400, full rest, then all-out 200. Enter both times.</p>
+  </div>
+
+  <div class="card hidden" id="zones">
+    <h2>Your zones</h2>
+    <div class="cssline" id="cssline"></div>
+    <div id="zlist"></div>
+  </div>
+
+  <div class="card hidden" id="workout">
+    <h2>Build a workout</h2>
+    <div class="row3">
+      <div><label for="f-focus">Focus</label><select id="f-focus">
+        <option value="threshold">Threshold</option>
+        <option value="aerobic">Aerobic</option>
+        <option value="sprint">Sprint</option>
+        <option value="mixed">Mixed</option>
+      </select></div>
+      <div><label>&nbsp;</label><button id="f-build">Build</button></div>
+      <div></div>
+    </div>
+    <div id="parts"></div>
+    <p class="total" id="total"></p>
+  </div>
+</div>
+<script src="engine.js"></script>
+<script>
+(function () {
+  'use strict';
+  var KEY = 'swimpace-data';
+  var $ = function (id) { return document.getElementById(id); };
+  var css = null;
+
+  function save() {
+    localStorage.setItem(KEY, JSON.stringify({ t400: $('f-400').value, t200: $('f-200').value, focus: $('f-focus').value }));
+  }
+
+  function renderZones() {
+    $('zones').classList.remove('hidden');
+    $('cssline').textContent = 'CSS pace: ' + SwimEngine.fmtTime(css) + ' per 100m';
+    var box = $('zlist'); box.innerHTML = '';
+    SwimEngine.zoneTable(css).forEach(function (z) {
+      var div = document.createElement('div');
+      div.className = 'zrow';
+      var l = document.createElement('span'); l.textContent = z.label;
+      var p = document.createElement('span'); p.className = 'p';
+      p.textContent = SwimEngine.fmtTime(z.fastSec) + ' - ' + SwimEngine.fmtTime(z.slowSec);
+      div.appendChild(l); div.appendChild(p); box.appendChild(div);
+    });
+  }
+
+  function renderWorkout() {
+    var w = SwimEngine.buildWorkout(css, $('f-focus').value);
+    $('workout').classList.remove('hidden');
+    var box = $('parts'); box.innerHTML = '';
+    w.parts.forEach(function (p) {
+      var div = document.createElement('div');
+      div.className = 'part';
+      var b = document.createElement('b'); b.textContent = p.label;
+      var d = document.createElement('div'); d.className = 'detail';
+      if (p.reps) {
+        d.innerHTML = 'target <span>' + SwimEngine.fmtTime(p.targetPerRep) + '</span> per ' + p.dist + 'm - leave every <span>' + SwimEngine.fmtTime(p.sendOff) + '</span> (' + Math.round(p.actualRest) + 's rest) - ' + p.distance + 'm, about ' + p.minutes + ' min';
+      } else {
+        d.innerHTML = p.distance + 'm, about ' + p.minutes + ' min';
+      }
+      div.appendChild(b); div.appendChild(d); box.appendChild(div);
+    });
+    $('total').textContent = 'Total: ' + w.totalDistance + 'm, about ' + Math.round(w.totalMinutes) + ' minutes.';
+  }
+
+  function calc() {
+    var t4 = SwimEngine.parseTime($('f-400').value);
+    var t2 = SwimEngine.parseTime($('f-200').value);
+    css = SwimEngine.cssPace(t4, t2);
+    if (!css) {
+      $('cssline') && $('zones').classList.remove('hidden');
+      $('cssline').textContent = 'Check the times - the 400 should be slower than the 200 (and both filled in).';
+      $('zlist').innerHTML = ''; $('workout').classList.add('hidden');
+      return;
+    }
+    renderZones(); renderWorkout(); save();
+  }
+
+  $('f-calc').addEventListener('click', calc);
+  $('f-build').addEventListener('click', function () { if (css) { renderWorkout(); save(); } });
+  try {
+    var d0 = JSON.parse(localStorage.getItem(KEY));
+    if (d0) {
+      $('f-400').value = d0.t400; $('f-200').value = d0.t200; $('f-focus').value = d0.focus;
+      calc();
+    }
+  } catch (e) {}
+})();
+</script>
+</body>
+</html>
